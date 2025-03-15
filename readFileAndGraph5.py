@@ -40,17 +40,18 @@ def addlabels(ax, x, y, width):
     """
     for i in range(len(x)):
         # Center the label horizontally above the bar
-        ax.text(x[i] + width / 2,  # Posizione orizzontale centrata
-                y[i] + 2,          # Posizione verticale appena sopra la barra
-                f"{y[i]:.0f}" if y[i] == int(y[i]) else f"{y[i]:.1f}",  # Formato numerico migliorato
-                color='#FF0000',   # Rosso brillante
-                fontsize=20,       # Dimensione font aumentata
+        ax.text(x[i] + width / 2,     # Posizione orizzontale centrata
+                y[i] + 5,             # Piccolo offset sopra la barra
+                f"{y[i]:.0f}" if y[i] == int(y[i]) else f"{y[i]:.1f}",
+                color='#FF0000',      # Rosso brillante
+                fontsize=20,          # Dimensione font aumentata
                 fontweight='bold', 
-                ha='center',       # Centrato orizzontalmente
-                va='bottom',       # Ancoraggio in basso (il testo si estende verso l'alto)
-                rotation=90,       # Mantiene la rotazione originale
-                path_effects=[path_effects.withStroke(linewidth=5, foreground='white')])  # Contorno bianco più spesso
-                
+                ha='center',          # Centrato orizzontalmente
+                va='bottom',          # Ancoraggio in basso
+                rotation=90,          # Mantiene la rotazione originale
+                path_effects=[path_effects.withStroke(linewidth=5, foreground='white')])
+        
+                        
 # Function to read and parse a log file
 def read_and_parse_log_file(log_file_path):
     """Reads a log file, parses the data, and returns days and values."""
