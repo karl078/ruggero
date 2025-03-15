@@ -40,7 +40,7 @@ def addlabels(ax, x, y, width):
     """
     for i in range(len(x)):
         # Center the label horizontally above the bar
-        ax.text(x[i] + width / 2, y[i] + 10, y[i], color='red', fontsize=18, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=3, foreground='white')]) #modified the vertical position
+        ax.text(x[i] + width / 2, y[i], y[i], color='red', fontsize=18, fontweight='bold', ha='center', va='top', rotation=90, path_effects=[path_effects.withStroke(linewidth=3, foreground='white')]) #modified va and position
 
 # Function to read and parse a log file
 def read_and_parse_log_file(log_file_path):
