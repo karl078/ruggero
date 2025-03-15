@@ -30,17 +30,19 @@ def git_push():
 
 # Function to add labels to the bars
 def addlabels(ax, x, y, width):
-    """Adds value labels above each bar in the chart.
-
-    Args:
-        ax: the axis where labels will be added.
-        x: A list of x-coordinates of the bars.
-        y: A list of bar heights (values).
-        width: width of each bar.
-    """
+    """Adds value labels above each bar in the chart."""
     for i in range(len(x)):
         # Center the label horizontally above the bar
-        ax.text(x[i] + width / 2, y[i] + 5, y[i], color='red', fontsize=18, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=3, foreground='white')]) #modified position
+        ax.text(x[i] + width / 2,  # Centro orizzontale
+                y[i] + 10,         # Alzato un po' di più sopra la barra
+                str(y[i]),         # Converto esplicitamente a stringa
+                color='black',     # Colore più scuro per miglior contrasto
+                fontsize=20,       # Dimensione font aumentata
+                fontweight='bold', 
+                ha='center', 
+                va='bottom',
+                rotation=0,        # Rimuovo la rotazione
+                path_effects=[path_effects.withStroke(linewidth=4, foreground='white')])  # Contorno più spesso
 
 # Function to read and parse a log file
 def read_and_parse_log_file(log_file_path):
