@@ -3,7 +3,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.patheffects as path_effects  # Corrected import
+import matplotlib.patheffects as path_effects
 import mpld3
 import numpy as np
 import time
@@ -40,7 +40,7 @@ def addlabels(ax, x, y, width):
     """
     for i in range(len(x)):
         # Center the label horizontally above the bar
-        ax.text(x[i] + width / 2, y[i] + 5, y[i], color='#333333', fontsize=11, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=2, foreground='white')]) #changed color and fontsize
+        ax.text(x[i] + width / 2, y[i] + 5, y[i], color='white', fontsize=11, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=3, foreground='#333333')])
 
 # Function to read and parse a log file
 def read_and_parse_log_file(log_file_path):
