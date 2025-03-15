@@ -41,7 +41,7 @@ def addlabels(ax, x, y, width):
     for i in range(len(x)):
         # Center the label horizontally above the bar
         ax.text(x[i] + width / 2,     # Posizione orizzontale centrata (lasciata come prima)
-                y[i] + 30,            # Offset maggiore sull'asse Y
+                y[i] + 40,            # Offset maggiore sull'asse Y
                 f"{y[i]:.0f}" if y[i] == int(y[i]) else f"{y[i]:.1f}",
                 color='#FF0000',      # Rosso brillante
                 fontsize=20,          # Dimensione font aumentata
