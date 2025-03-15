@@ -3,6 +3,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as path_effects  # Corrected import
 import mpld3
 import numpy as np
 import time
@@ -39,8 +40,8 @@ def addlabels(ax, x, y, width):
     """
     for i in range(len(x)):
         # Center the label horizontally above the bar
-        ax.text(x[i] + width / 2, y[i] + 2, y[i], color='red', fontsize=10, ha='center', va='bottom', rotation=90)
-
+        ax.text(x[i] + width / 2, y[i] + 5, y[i], color='black', fontsize=12, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=2, foreground='white')]) #corrected this line
+    
 # Function to read and parse a log file
 def read_and_parse_log_file(log_file_path):
     """Reads a log file, parses the data, and returns days and values."""
@@ -91,7 +92,7 @@ fig.tight_layout(pad=5.0) #add more space between subplots
 
 # Chart 1 (Well Water)
 ax1.bar(giorniMeseInt, altezze, width=0.7, color='skyblue')  # Use a better color
-addlabels(ax1, giorniMeseInt, altezze, 0.7) #corrected this line
+addlabels(ax1, giorniMeseInt, altezze, 0.7) 
 ax1.yaxis.grid(True, color='lightgray', linestyle='--')  # Lighter gridlines
 ax1.set_ylabel("ALTEZZA [cm]", fontsize=16)
 ax1.set_ylim([0, 425])
@@ -102,7 +103,7 @@ ax1.set_title("Cisterna Pozzo - " + meseStr + " " + str(now.year), fontsize=16) 
 
 # Chart 2 (Municipal Water)
 ax2.bar(giorniMeseIntJ, altezzeJ, width=0.7, color='lightgreen')  # Use a different color
-addlabels(ax2, giorniMeseIntJ, altezzeJ, 0.7) #corrected this line
+addlabels(ax2, giorniMeseIntJ, altezzeJ, 0.7)
 ax2.yaxis.grid(True, color='lightgray', linestyle='--')  # Lighter gridlines
 ax2.set_xlabel("GIORNO", fontsize=16)
 ax2.set_ylabel("ALTEZZA [cm]", fontsize=16)
