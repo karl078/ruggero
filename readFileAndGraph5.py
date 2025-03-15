@@ -40,7 +40,7 @@ def addlabels(ax, x, y, width):
     """
     for i in range(len(x)):
         # Center the label horizontally above the bar
-        ax.text(x[i] + width / 2, y[i] + 10, y[i], color='red', fontsize=18, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=3, foreground='white')]) #modified position
+        ax.text(x[i] + width / 2, y[i] + 5, y[i], color='black', fontsize=18, fontweight='bold', ha='center', va='bottom', rotation=90, path_effects=[path_effects.withStroke(linewidth=3, foreground='white')]) #modified position and color
 
 # Function to read and parse a log file
 def read_and_parse_log_file(log_file_path):
@@ -118,7 +118,7 @@ TITOLO = meseStr + ' ' + str(now.year) + ": SOPRA cisterna pozzo - SOTTO cistern
 fig.suptitle(TITOLO, fontsize=18, fontweight='bold')  # Make main title bold
 
 # Style for the whole page
-plt.rcParams['axes.facecolor'] = '#f5f5f5' #change background color
+plt.rcParams['axes.facecolor'] = '#e0e0e0' #change background color
 plt.rcParams['axes.edgecolor'] = '#000000' #add border to plot
 
 plt_html = mpld3.fig_to_html(fig) #Generate html code
