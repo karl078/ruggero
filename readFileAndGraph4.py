@@ -19,14 +19,27 @@ PATH_OF_GIT_REPO = '/home/pi/python-scripts/.git'
 def git_push():
     try:
         repo = Repo(PATH_OF_GIT_REPO)
-        repo.git.add(update=True)
-        repo.index.add(['/home/pi/python-scripts/index.html'])
-        repo.index.commit('Aggiornamento misurazione acqua del ' + str(now.day) + '-' + str(now.month) + '-' + str(now.year)+'-'+str(now.hour)+':'+str(now.minute))
-        origin = repo.remote(name='origin')
-        origin.push()
-        print("File caricato su GITHUB PAGES!\n")
+        
+        # Check if there are any changes to commit
+        if repo.is_dirty(untracked_files=True):
+            repo.git.add(update=True)
+            repo.index.add(['/home/pi/python-scripts/index.html'])
+            # Use a more detailed commit message
+            commit_message = f"Aggiornamento misurazione acqua del {now.day}-{now.month}-{now.year}-{now.hour}:{now.minute}"
+            repo.index.commit(commit_message)
+            origin = repo.remote(name='origin')
+            # Check if the remote is accessible before pushing
+            if origin:
+                origin.push()
+                print("File caricato su GITHUB PAGES!\n")
+            else:
+                print("Error: Remote 'origin' not found. Check your git configuration.")
+        else:
+            print("No changes to commit.")
+
     except Exception as e:
-        print(f'Some error occurred while pushing the code: {e}')
+        print(f"Error during git push: {e}")
+        print("Please check your git configuration and credentials.")
 
 # Function to add labels to the bars
 def addlabels(ax, x, y, width):
