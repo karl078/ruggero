@@ -26,14 +26,15 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # !!! CONFIGURAZIONE UTENTE RICHIESTA !!!
 # Specifica il percorso della directory radice del tuo repository Git clonato (la cartella "ruggero").
 #
-# OPZIONE 1 (Default): La cartella "ruggero" è una sottodirectory di dove si trova questo script.
-REPO_ROOT_DIR = os.path.join(SCRIPT_DIR, "ruggero")
+# OPZIONE 1: Se la cartella "ruggero" (root del repository) è una sottodirectory di dove si trova questo script.
+# Esempio: SCRIPT_DIR = /home/utente/progetti/, REPO_ROOT_DIR = /home/utente/progetti/ruggero/
+# REPO_ROOT_DIR = os.path.join(SCRIPT_DIR, "ruggero") # Commentare questa riga se si usa l'Opzione 2 o se lo script è nella root del repo.
 #
 # OPZIONE 2: Specifica un percorso assoluto.
 # Se usi questa opzione, decommenta e modifica la riga seguente, e commenta quella dell'OPZIONE 1.
 # Esempio Windows: REPO_ROOT_DIR = r"C:\Utenti\TuoNome\Documenti\ruggero"
 # Esempio Linux:   REPO_ROOT_DIR = "/home/tuoutente/ruggero"
-# REPO_ROOT_DIR = r"PERCORSO_ASSOLUTO_ALLA_TUA_CARTELLA_RUGGERO" # <--- MODIFICA QUI SE USI OPZIONE 2
+REPO_ROOT_DIR = r"C:\Users\Carlo\Documents\DEV\Rpi\Server raccolta dati misurazione acqua\ruggero" # Assicurati che questa sia la riga attiva e corretta.
 
 # Verifica se la directory del repository esiste
 if not os.path.isdir(REPO_ROOT_DIR):
