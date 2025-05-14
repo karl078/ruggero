@@ -1,0 +1,442 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import plotly.express as px
+import plotly.io as pio
+import pandas as pd # Utile per Plotly Express
+
+import datetime
+import calendar
+from mese import mese # Assumendo che mese.py sia accessibile
+from git import Repo
+import logging
+# from logging.handlers import TimedRotatingFileHandler # Non più usato direttamente qui per SCRIPT_EVENT_LOG_FILE
+import configparser
+import re
+import os
+import threading
+import sys
+
+# Ottiene il percorso assoluto della directory in cui si trova lo script
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# !!! CONFIGURAZIONE UTENTE RICHIESTA !!!
+REPO_ROOT_DIR_WINDOWS = r"C:\Users\Carlo\Documents\DEV\Rpi\Server raccolta dati misurazione acqua\ruggero" # <--- MODIFICA QUESTO PERCORSO PER WINDOWS
+REPO_ROOT_DIR_RASPBERRY = "/home/rpi/python-scripts/acquaServer/ruggero" # <--- MODIFICA QUESTO PERCORSO PER RASPBERRY PI
+
+if sys.platform.startswith('win'):
+    REPO_ROOT_DIR = REPO_ROOT_DIR_WINDOWS
+    print(f"Rilevato ambiente Windows. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
+elif sys.platform.startswith('linux'):
+    REPO_ROOT_DIR = REPO_ROOT_DIR_RASPBERRY
+    print(f"Rilevato ambiente Linux/Raspberry Pi. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
+else:
+    error_message = f"ERRORE CRITICO: Sistema operativo non supportato: {sys.platform}"
+    print(error_message, file=sys.stderr)
+    sys.exit(1)
+
+if not os.path.isdir(REPO_ROOT_DIR):
+    error_message = (
+        f"ERRORE CRITICO: La directory del repository 'REPO_ROOT_DIR' non esiste o non è una directory.\n"
+        f"Percorso configurato: '{REPO_ROOT_DIR}'\n"
+        f"Verifica la configurazione di REPO_ROOT_DIR in {os.path.basename(__file__)} e assicurati che la cartella esista."
+    )
+    print(error_message, file=sys.stderr)
+    sys.exit(1)
+
+PATH_OF_GIT_REPO = os.path.join(REPO_ROOT_DIR, '.git')
+HTML_OUTPUT_PATH = os.path.join(REPO_ROOT_DIR, "index.html")
+
+# Gestione percorsi LOG_DIRECTORY e CLIENT_MAP_INI_FILE
+# Assumiamo che lo script sia in .../ruggero/
+# e i log/client_map.ini siano in .../Server raccolta dati misurazione acqua/ (paralleli a ruggero)
+# o in .../ruggero/ (se il fallback viene attivato)
+
+PARENT_OF_SCRIPT_DIR = os.path.dirname(SCRIPT_DIR)
+
+LOG_DIRECTORY_PRIMARY = os.path.join(PARENT_OF_SCRIPT_DIR, 'logs')
+LOG_DIRECTORY_FALLBACK = os.path.join(SCRIPT_DIR, 'logs')
+
+if os.path.isdir(LOG_DIRECTORY_PRIMARY):
+    LOG_DIRECTORY = LOG_DIRECTORY_PRIMARY
+else:
+    LOG_DIRECTORY = LOG_DIRECTORY_FALLBACK
+    print(f"INFO: Percorso primario dei log non trovato ({LOG_DIRECTORY_PRIMARY}). Uso fallback: {LOG_DIRECTORY}")
+
+
+CLIENT_MAP_INI_FILE_PRIMARY = os.path.join(PARENT_OF_SCRIPT_DIR, 'client_map.ini')
+CLIENT_MAP_INI_FILE_FALLBACK = os.path.join(SCRIPT_DIR, 'client_map.ini')
+
+if os.path.exists(CLIENT_MAP_INI_FILE_PRIMARY):
+    CLIENT_MAP_INI_FILE = CLIENT_MAP_INI_FILE_PRIMARY
+else:
+    CLIENT_MAP_INI_FILE = CLIENT_MAP_INI_FILE_FALLBACK
+    print(f"INFO: File client_map.ini primario non trovato ({CLIENT_MAP_INI_FILE_PRIMARY}). Uso fallback: {CLIENT_MAP_INI_FILE}")
+
+
+MEASUREMENT_LOG_FILE_PATH = os.path.join(LOG_DIRECTORY, 'measurements.log')
+SCRIPT_EVENT_LOG_FILE = os.path.join(LOG_DIRECTORY, 'graph_generator_events_plotly.log') # Nome log specifico
+
+logger = logging.getLogger(__name__)
+script_event_file_handler = None
+current_script_event_log_year_month = None
+script_event_log_rotation_lock = threading.Lock()
+client_name_map = {}
+now_timestamp_for_commit = None
+
+# --- Funzioni di logging e gestione file (invariate da v2, tranne nome SCRIPT_EVENT_LOG_FILE) ---
+def _setup_script_event_handler_for_month(year, month):
+    global script_event_file_handler, current_script_event_log_year_month, logger
+    if script_event_file_handler:
+        logger.warning(f"_setup_script_event_handler_for_month chiamato con un handler esistente per {current_script_event_log_year_month}. Verrà sostituito.")
+        logger.removeHandler(script_event_file_handler)
+        script_event_file_handler.close()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+    new_handler = logging.FileHandler(SCRIPT_EVENT_LOG_FILE, mode='a', encoding='utf-8')
+    new_handler.setFormatter(formatter)
+    logger.addHandler(new_handler)
+    script_event_file_handler = new_handler
+    current_script_event_log_year_month = (year, month)
+    logger.info(f"Handler per {SCRIPT_EVENT_LOG_FILE} configurato per il mese {year:04d}-{month:02d}.")
+
+def manage_script_event_log_rotation():
+    global script_event_file_handler, current_script_event_log_year_month, logger, script_event_log_rotation_lock
+    now_dt = datetime.datetime.now()
+    target_year, target_month = now_dt.year, now_dt.month
+    with script_event_log_rotation_lock:
+        if current_script_event_log_year_month is None or current_script_event_log_year_month != (target_year, target_month):
+            if current_script_event_log_year_month is not None:
+                prev_year, prev_month = current_script_event_log_year_month
+                logger.info(f"Rilevato cambio di mese per {SCRIPT_EVENT_LOG_FILE} da {prev_year:04d}-{prev_month:02d} a {target_year:04d}-{target_month:02d}. Inizio rotazione.")
+                if script_event_file_handler:
+                    logger.removeHandler(script_event_file_handler)
+                    script_event_file_handler.close()
+                    script_event_file_handler = None
+                archive_log_filename = f"{SCRIPT_EVENT_LOG_FILE}.{prev_year:04d}-{prev_month:02d}"
+                if os.path.exists(SCRIPT_EVENT_LOG_FILE):
+                    try:
+                        os.rename(SCRIPT_EVENT_LOG_FILE, archive_log_filename)
+                        logger.info(f"File {SCRIPT_EVENT_LOG_FILE} archiviato come {archive_log_filename}.")
+                    except OSError as e:
+                        logger.error(f"Errore durante l'archiviazione di {SCRIPT_EVENT_LOG_FILE} a {archive_log_filename}: {e}")
+                else:
+                    logger.warning(f"File {SCRIPT_EVENT_LOG_FILE} (atteso per {prev_year:04d}-{prev_month:02d}) non trovato per l'archiviazione.")
+            elif os.path.exists(SCRIPT_EVENT_LOG_FILE):
+                try:
+                    mod_time = os.path.getmtime(SCRIPT_EVENT_LOG_FILE)
+                    mod_dt = datetime.datetime.fromtimestamp(mod_time)
+                    if (mod_dt.year, mod_dt.month) != (target_year, target_month):
+                        archive_log_filename = f"{SCRIPT_EVENT_LOG_FILE}.{mod_dt.year:04d}-{mod_dt.month:02d}"
+                        os.rename(SCRIPT_EVENT_LOG_FILE, archive_log_filename)
+                        logger.info(f"File {SCRIPT_EVENT_LOG_FILE} esistente (del {mod_dt.year:04d}-{mod_dt.month:02d}) archiviato come {archive_log_filename} all'avvio.")
+                except Exception as e:
+                    logger.error(f"Errore durante la gestione di {SCRIPT_EVENT_LOG_FILE} esistente all'avvio: {e}")
+            _setup_script_event_handler_for_month(target_year, target_month)
+
+def setup_logging():
+    actual_log_dir_path = LOG_DIRECTORY
+    if not os.path.exists(actual_log_dir_path):
+        try:
+            os.makedirs(actual_log_dir_path)
+            print(f"Directory di log creata: {actual_log_dir_path}")
+        except OSError as e:
+            print(f"ATTENZIONE: Impossibile creare la directory di log {actual_log_dir_path}: {e}. Il logging su file sarà disabilitato.")
+            logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+            return False
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    logger.propagate = False
+    return True
+
+def load_client_name_map(ini_file_path):
+    config = configparser.ConfigParser()
+    loaded_map = {}
+    try:
+        if not os.path.exists(ini_file_path):
+            logger.warning(f"File di mappatura client '{ini_file_path}' non trovato. Verranno usati gli IP come nomi.")
+            return loaded_map
+        config.read(ini_file_path, encoding='utf-8')
+        if 'ClientNames' in config:
+            if config['ClientNames']:
+                for ip, name in config['ClientNames'].items():
+                    loaded_map[ip] = name
+                logger.info(f"Mappatura nomi client caricata da '{ini_file_path}'. {len(loaded_map)} voci trovate.")
+            else:
+                logger.warning(f"Sezione [ClientNames] trovata in '{ini_file_path}', ma è vuota.")
+        else:
+            logger.warning(f"Sezione [ClientNames] non trovata nel file '{ini_file_path}'.")
+    except configparser.Error as e:
+        logger.error(f"Errore durante la lettura del file di mappatura client '{ini_file_path}': {e}")
+    return loaded_map
+
+def read_and_parse_log_file(log_file_path, current_month, current_year):
+    raw_data_by_client_day = {}
+    if not os.path.exists(log_file_path):
+        logger.warning(f"File di log '{log_file_path}' non trovato per mese {current_month}/{current_year}.")
+        return {}
+    try:
+        with open(log_file_path, 'r', encoding='utf-8') as fo:
+            for line_num, rec in enumerate(fo, 1):
+                rec = rec.strip()
+                if not rec: continue
+                parts = rec.split()
+                if len(parts) >= 4:
+                    try:
+                        date_str, time_str, level_str = parts[0], parts[1], parts[2]
+                        client_info_full = " ".join(parts[3:])
+                        if client_info_full.startswith("(Client: ") and client_info_full.endswith(")"):
+                            client_id_raw = client_info_full[len("(Client: "):-1]
+                            client_ip = client_id_raw.split(':')[0]
+                            client_id = client_name_map.get(client_ip, client_ip)
+                            datetime_str = f"{date_str} {time_str}"
+                            try:
+                                log_datetime = datetime.datetime.strptime(datetime_str, "%d/%m/%Y %H:%M")
+                            except ValueError:
+                                logger.warning(f"Riga {line_num}: Formato data/ora non valido '{datetime_str}' in '{log_file_path}'. Riga saltata: {rec}")
+                                continue
+                            if log_datetime.month != current_month or log_datetime.year != current_year:
+                                continue
+                            try:
+                                level = float(level_str)
+                            except ValueError:
+                                logger.warning(f"Riga {line_num}: Valore livello non valido '{level_str}' in '{log_file_path}'. Riga saltata: {rec}")
+                                continue
+                            day_of_month = log_datetime.day
+                            if client_id not in raw_data_by_client_day:
+                                raw_data_by_client_day[client_id] = {}
+                            if day_of_month not in raw_data_by_client_day[client_id] or \
+                               log_datetime > raw_data_by_client_day[client_id][day_of_month][0]:
+                                raw_data_by_client_day[client_id][day_of_month] = (log_datetime, level)
+                        else:
+                            logger.warning(f"Riga {line_num}: Formato info client non riconosciuto '{client_info_full}' in '{log_file_path}'. Riga saltata: {rec}")
+                    except IndexError:
+                        logger.warning(f"Riga {line_num}: Formato riga non valido (parti insufficienti) in '{log_file_path}'. Riga saltata: {rec}")
+                    except Exception as e:
+                        logger.exception(f"Riga {line_num}: Errore imprevisto durante il parsing della riga '{rec}' in '{log_file_path}':")
+                else:
+                    logger.warning(f"Riga {line_num}: Formato riga non valido (parti insufficienti) in '{log_file_path}'. Riga saltata: {rec}")
+    except Exception as e:
+        logger.exception(f"Errore imprevisto durante l'elaborazione del file '{log_file_path}':")
+        return {}
+    processed_data = {}
+    for client_id, daily_data in raw_data_by_client_day.items():
+        if not daily_data: continue
+        sorted_days = sorted(daily_data.keys())
+        days_list = [day for day in sorted_days]
+        values_list = [daily_data[day][1] for day in sorted_days]
+        processed_data[client_id] = {"days": days_list, "values": values_list}
+    if not processed_data and os.path.exists(log_file_path):
+        logger.info(f"Nessun dato valido trovato per {current_month}/{current_year} in '{log_file_path}'.")
+    elif processed_data:
+        logger.info(f"Dati parsati con successo da '{log_file_path}' per {current_month}/{current_year}.")
+    return processed_data
+
+def git_push(files_to_add):
+    try:
+        repo = Repo(PATH_OF_GIT_REPO)
+        existing_files_to_add = [f for f in files_to_add if os.path.exists(f)]
+        if not existing_files_to_add:
+            logger.info("Nessun file HTML nuovo o modificato da committare.")
+            return
+        repo.index.add(existing_files_to_add)
+        if not repo.index.diff(repo.head.commit) and not repo.is_dirty(untracked_files=True):
+            logger.info("Nessuna modifica rilevata nei file HTML da committare.")
+            return
+        commit_time = now_timestamp_for_commit if now_timestamp_for_commit else datetime.datetime.now()
+        commit_message = f'Aggiornamento misurazione acqua del {commit_time.strftime("%d-%m-%Y %H:%M")}'
+        repo.index.commit(commit_message)
+        origin = repo.remote(name='origin')
+        origin.push()
+        logger.info(f"File {existing_files_to_add} caricati su GITHUB PAGES!")
+    except Exception as e:
+        logger.exception(f'Errore durante il push del codice su GitHub Pages:')
+
+# --- Funzione di creazione grafico con Plotly ---
+def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_path, is_main_index_page=False, is_archive_file=False):
+    html_body_content = ""
+    plotly_js_included = False # Per includere Plotly.js solo una volta per pagina
+
+    if not data_input:
+        logger.warning(f"Nessun dato fornito per generare grafici Plotly per: {page_main_title} in {output_html_path}.")
+        html_body_content = f"<p>Nessun dato disponibile per {page_main_title}.</p>"
+    else:
+        clients_to_graph = data_input.items()
+        num_clients_with_data = 0
+
+        for client_id, client_specific_data in clients_to_graph:
+            if not client_specific_data or not client_specific_data.get("days"):
+                logger.info(f"Nessun giorno con dati per il client '{client_id}' per {page_main_title}. Grafico Plotly per questo client saltato.")
+                if is_main_index_page:
+                    html_body_content += f"<h2>Consumi {client_id}</h2><p>Nessun dato disponibile per questo client nel periodo.</p><hr/>\n"
+                # else: per file archivio singolo, questo caso è gestito da data_input vuoto
+                continue
+            
+            num_clients_with_data += 1
+            df_client = pd.DataFrame({
+                'Giorno': client_specific_data["days"],
+                'Altezza acqua (cm)': client_specific_data["values"]
+            })
+
+            graph_specific_title = f"{page_main_title} (Client: {client_id})" if is_main_index_page else page_main_title
+            
+            fig = px.bar(df_client, 
+                         x='Giorno', 
+                         y='Altezza acqua (cm)', 
+                         title=f'Consumi Acqua - {graph_specific_title}',
+                         text='Altezza acqua (cm)') # Mostra valori sulle barre
+            
+            fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
+            fig.update_layout(
+                yaxis_range=[0, 400],
+                xaxis_title='Giorno del mese',
+                yaxis_title='Altezza acqua (cm)', # Etichetta asse Y
+                bargap=0.2 # Spazio tra le barre di giorni diversi
+            )
+            # Assicura che i giorni siano trattati come categorie per evitare interpolazioni
+            fig.update_xaxes(type='category')
+
+            # Converti figura in HTML. Includi Plotly.js solo per il primo grafico della pagina.
+            include_js = 'cdn' if not plotly_js_included else False
+            html_fig_for_client = pio.to_html(fig, full_html=False, include_plotlyjs=include_js)
+            if include_js == 'cdn':
+                plotly_js_included = True
+
+            if is_main_index_page:
+                html_body_content += f"<h2>Consumi {client_id}</h2>\n{html_fig_for_client}\n<hr/>\n"
+            else: # Pagina di archivio per singolo client
+                html_body_content = html_fig_for_client
+                break # Per i file di archivio, c'è un solo client per file
+
+        if num_clients_with_data == 0 and is_main_index_page: # Se nessun client aveva dati graficabili
+             html_body_content = f"<p>Nessun dato graficabile disponibile per i client nel periodo {page_main_title}.</p>"
+
+    # Costruzione HTML finale
+    html_content = f"<html><head><meta charset=\"utf-8\" /><title>Grafico Consumi {page_main_title}</title></head>\n"
+    html_content += f"<body><h1>Grafico Consumi Acqua - {page_main_title}</h1>\n"
+    html_content += html_body_content
+
+    # Aggiungi link ad altri grafici e archivi
+    html_content += "<h2>Altri Grafici e Archivi</h2><ul>\n"
+    other_linkable_files = []
+    if os.path.exists(REPO_ROOT_DIR):
+        all_repo_html_files = sorted(
+            [f for f in os.listdir(REPO_ROOT_DIR) if f.endswith(".html") and os.path.join(REPO_ROOT_DIR, f) != output_html_path],
+            reverse=True
+        )
+        if is_main_index_page:
+            other_linkable_files = [f for f in all_repo_html_files if f.startswith("grafico_") and not f == os.path.basename(HTML_OUTPUT_PATH)]
+        else:
+            other_linkable_files = all_repo_html_files
+            if os.path.exists(HTML_OUTPUT_PATH) and os.path.basename(HTML_OUTPUT_PATH) not in other_linkable_files and HTML_OUTPUT_PATH != output_html_path :
+                other_linkable_files.insert(0, os.path.basename(HTML_OUTPUT_PATH))
+
+    if not other_linkable_files:
+         html_content += "<li>Nessun altro grafico o archivio disponibile.</li>"
+
+    for i, other_file_name in enumerate(other_linkable_files):
+        if i < 24:
+             link_display_name = other_file_name.replace(".html", "").replace("grafico_", "").replace("_", " ")
+             if other_file_name == "index.html":
+                 link_display_name = "Grafici Mese Corrente (index.html)"
+             else:
+                match_link = re.match(r"grafico_(\d{4}-\d{2})_(.+)", other_file_name.replace(".html",""))
+                if match_link:
+                    period, client_part = match_link.groups()
+                    link_display_name = f"{period} (Client: {client_part})"
+             html_content += f'<li><a href="{other_file_name}">{link_display_name}</a></li>'
+        else:
+            if i == 24: html_content += "<li>... (altri grafici disponibili nella cartella del repository)</li>"
+            break
+    html_content += "</ul>\n"
+    html_content += f"<p><em>Ultimo aggiornamento: {datetime.datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</em></p>\n"
+    html_content += "</body></html>\n"
+
+    try:
+        with open(output_html_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        logger.info(f"Grafico Plotly HTML salvato in '{output_html_path}'")
+    except IOError as e:
+        logger.error(f"Impossibile scrivere il file HTML Plotly '{output_html_path}': {e}")
+
+def process_archived_logs_plotly():
+    archived_files_generated = []
+    if not os.path.exists(LOG_DIRECTORY):
+        logger.error(f"La directory dei log '{LOG_DIRECTORY}' non esiste. Impossibile processare gli archivi.")
+        return archived_files_generated
+        
+    log_files = [f for f in os.listdir(LOG_DIRECTORY) if f.startswith("measurements.log.")]
+    for log_file_name in log_files:
+        match = re.match(r"measurements\.log\.(\d{4})-(\d{2})", log_file_name)
+        if match:
+            log_year, log_month = int(match.group(1)), int(match.group(2))
+            log_path = os.path.join(LOG_DIRECTORY, log_file_name)
+            mese_str_archivio = mese(log_month)
+            logger.info(f"Processando dati archiviati per {mese_str_archivio} {log_year} da {log_path}")
+            archived_month_data_all_clients = read_and_parse_log_file(log_path, log_month, log_year)
+            if archived_month_data_all_clients:
+                for client_id, client_specific_data in archived_month_data_all_clients.items():
+                    if not client_specific_data.get("days"):
+                        logger.info(f"Nessun giorno con dati per il client '{client_id}' nell'archivio {log_file_name}.")
+                        continue
+                    data_for_graph = {client_id: client_specific_data}
+                    safe_client_id = re.sub(r'[^\w\-\.]', '_', client_id)
+                    archive_html_filename = f"grafico_{log_year}-{log_month:02d}_{safe_client_id}.html"
+                    archive_html_filepath = os.path.join(REPO_ROOT_DIR, archive_html_filename)
+                    archive_page_title = f"{mese_str_archivio} {log_year} (Client: {client_id})"
+                    create_and_save_graph_plotly(
+                        data_for_graph,
+                        archive_page_title,
+                        log_year,
+                        archive_html_filepath,
+                        is_main_index_page=False,
+                        is_archive_file=True
+                    )
+                    archived_files_generated.append(archive_html_filepath)
+            else:
+                logger.info(f"Nessun dato da processare per l'archivio {log_file_name}.")
+    return archived_files_generated
+
+if __name__ == "__main__":
+    if not setup_logging():
+        sys.exit("Avvio fallito a causa di errori di configurazione del logging.")
+    manage_script_event_log_rotation()
+    logger.info("Avvio script generazione grafico con Plotly...")
+    now_timestamp_for_commit = datetime.datetime.now()
+    current_month_num = now_timestamp_for_commit.month
+    current_year_num = now_timestamp_for_commit.year
+    current_month_name = mese(current_month_num)
+    client_name_map = load_client_name_map(CLIENT_MAP_INI_FILE)
+    logger.info(f"Lettura dati per il mese corrente: {current_month_name} {current_year_num} da {MEASUREMENT_LOG_FILE_PATH}")
+    current_month_data_all_clients = read_and_parse_log_file(MEASUREMENT_LOG_FILE_PATH, current_month_num, current_year_num)
+    
+    logger.info(f"Generazione di {HTML_OUTPUT_PATH} per il mese corrente con Plotly: {current_month_name} {current_year_num}")
+    create_and_save_graph_plotly(
+        current_month_data_all_clients,
+        f"{current_month_name} {current_year_num}",
+        current_year_num,
+        HTML_OUTPUT_PATH,
+        is_main_index_page=True,
+        is_archive_file=False
+    )
+    generated_html_files_for_git = []
+    if os.path.exists(HTML_OUTPUT_PATH):
+        generated_html_files_for_git.append(HTML_OUTPUT_PATH)
+            
+    logger.info("Inizio processamento log archiviati con Plotly...")
+    archived_htmls = process_archived_logs_plotly()
+    generated_html_files_for_git.extend(archived_htmls)
+    logger.info(f"File HTML Plotly archiviati generati: {archived_htmls}")
+
+    if generated_html_files_for_git:
+        existing_generated_files = [f for f in generated_html_files_for_git if os.path.exists(f)]
+        if existing_generated_files:
+            logger.info(f"Tentativo di push per i seguenti file Plotly: {existing_generated_files}")
+            # git_push(existing_generated_files) # Commentato per test
+        else:
+            logger.info("Nessun file HTML Plotly (corrente o archiviato) è stato effettivamente generato o trovato, push saltato.")
+    else:
+        logger.info("Nessun file HTML Plotly generato, push saltato.")
+    logger.info("Script generazione grafico Plotly completato.")
