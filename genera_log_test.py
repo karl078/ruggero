@@ -3,10 +3,12 @@ import os
 import calendar # Aggiungi questa riga per importare il modulo calendar
 
 # --- Configurazione per la generazione dei log di esempio ---
-NUM_MESI_ARCHIVIO = 2 # Genera log per il mese corrente e 2 mesi archiviati
+NUM_MESI_ARCHIVIO = 2  # Genera log per il mese corrente e N mesi archiviati
 CLIENTI_IP = ["192.168.1.100", "192.168.1.101"]
-BASE_DIR = r"c:\Users\Carlo\Documents\DEV\Rpi\Server raccolta dati misurazione acqua"
-LOG_DIR = os.path.join(BASE_DIR, "logs")
+
+# Ottiene la directory in cui si trova questo script
+SCRIPT_EXECUTION_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(SCRIPT_EXECUTION_DIR, "logs") # Crea la cartella 'logs' dove viene eseguito lo script
 
 # Assicurati che la directory dei log esista
 if not os.path.exists(LOG_DIR):
