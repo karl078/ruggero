@@ -270,7 +270,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
             if not client_specific_data or not client_specific_data.get("days"):
                 logger.info(f"Nessun giorno con dati per il client '{client_id}' per {page_main_title}. Grafico Plotly per questo client saltato.")
                 if is_main_index_page:
-                    html_body_content += f"<h2>Consumi {client_id}</h2><p>Nessun dato disponibile per questo client nel periodo.</p><hr/>\n"
+                    html_body_content += f"<h2>Livello acqua {client_id}</h2><p>Nessun dato disponibile per questo client nel periodo.</p><hr/>\n"
                 # else: per file archivio singolo, questo caso è gestito da data_input vuoto
                 continue
             
@@ -285,7 +285,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
             fig = px.bar(df_client, 
                          x='Giorno', 
                          y='Altezza acqua (cm)', 
-                         title=f'Consumi Acqua - {graph_specific_title}',
+                         title=f'Livello acqua Acqua - {graph_specific_title}',
                          text='Altezza acqua (cm)') # Mostra valori sulle barre
             
             fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
@@ -305,7 +305,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
                 plotly_js_included = True
 
             if is_main_index_page:
-                html_body_content += f"<h2>Consumi {client_id}</h2>\n{html_fig_for_client}\n<hr/>\n"
+                html_body_content += f"<h2>Livello acqua {client_id}</h2>\n{html_fig_for_client}\n<hr/>\n"
             else: # Pagina di archivio per singolo client
                 html_body_content = html_fig_for_client
                 break # Per i file di archivio, c'è un solo client per file
@@ -314,8 +314,8 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
              html_body_content = f"<p>Nessun dato graficabile disponibile per i client nel periodo {page_main_title}.</p>"
 
     # Costruzione HTML finale
-    html_content = f"<html><head><meta charset=\"utf-8\" /><title>Grafico Consumi {page_main_title}</title></head>\n"
-    html_content += f"<body><h1>Grafico Consumi Acqua - {page_main_title}</h1>\n"
+    html_content = f"<html><head><meta charset=\"utf-8\" /><title>Grafico Livello acqua {page_main_title}</title></head>\n"
+    html_content += f"<body><h1>Grafico Livello acqua Acqua - {page_main_title}</h1>\n"
     html_content += html_body_content
 
     # Aggiungi link ad altri grafici e archivi
