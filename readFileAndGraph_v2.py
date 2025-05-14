@@ -403,7 +403,7 @@ def create_and_save_graph(data_input, page_main_title, year, output_html_path, i
             addlabels(ax, x_positions, values_for_plotting, bar_width)
 
             ax.set_xlabel('Giorno del mese', fontsize=18, fontweight='bold', color='blue')
-            ax.set_ylabel('Centimetri (cm)', fontsize=18, fontweight='bold', color='blue')
+            ax.set_ylabel('Altezza acqua (cm)', fontsize=18, fontweight='bold', color='blue')
             
             # Titolo del singolo grafico
             graph_specific_title = f"{page_main_title} (Client: {client_id})" if is_main_index_page else page_main_title
