@@ -24,17 +24,25 @@ import sys # Importato per sys.exit in caso di configurazione errata
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # !!! CONFIGURAZIONE UTENTE RICHIESTA !!!
-# Specifica il percorso della directory radice del tuo repository Git clonato (la cartella "ruggero").
+# Specifica i percorsi della directory radice del tuo repository Git clonato ("ruggero")
+# per i diversi ambienti operativi.
 #
-# OPZIONE 1: Se la cartella "ruggero" (root del repository) è una sottodirectory di dove si trova questo script.
-# Esempio: SCRIPT_DIR = /home/utente/progetti/, REPO_ROOT_DIR = /home/utente/progetti/ruggero/
-# REPO_ROOT_DIR = os.path.join(SCRIPT_DIR, "ruggero") # Commentare questa riga se si usa l'Opzione 2 o se lo script è nella root del repo.
-#
-# OPZIONE 2: Specifica un percorso assoluto.
-# Se usi questa opzione, decommenta e modifica la riga seguente, e commenta quella dell'OPZIONE 1.
-# Esempio Windows: REPO_ROOT_DIR = r"C:\Utenti\TuoNome\Documenti\ruggero"
-# Esempio Linux:   REPO_ROOT_DIR = "/home/tuoutente/ruggero"
-REPO_ROOT_DIR = r"C:\Users\Carlo\Documents\DEV\Rpi\Server raccolta dati misurazione acqua\ruggero" # Assicurati che questa sia la riga attiva e corretta.
+# Devi MODIFICARE i percorsi qui sotto con i percorsi corretti sul tuo sistema Windows e sul tuo Raspberry Pi.
+
+REPO_ROOT_DIR_WINDOWS = r"C:\Users\Carlo\Documents\DEV\Rpi\Server raccolta dati misurazione acqua\ruggero" # <--- MODIFICA QUESTO PERCORSO PER WINDOWS
+REPO_ROOT_DIR_RASPBERRY = "/home/rpi/python-scripts/acquaServer/ruggero" # <--- MODIFICA QUESTO PERCORSO PER RASPBERRY PI
+
+# Rileva il sistema operativo e imposta REPO_ROOT_DIR di conseguenza
+if sys.platform.startswith('win'): # Rileva Windows
+    REPO_ROOT_DIR = REPO_ROOT_DIR_WINDOWS
+    print(f"Rilevato ambiente Windows. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
+elif sys.platform.startswith('linux'): # Rileva Linux (inclusa Raspberry Pi OS)
+    REPO_ROOT_DIR = REPO_ROOT_DIR_RASPBERRY
+    print(f"Rilevato ambiente Linux/Raspberry Pi. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
+else:
+    error_message = f"ERRORE CRITICO: Sistema operativo non supportato: {sys.platform}"
+    print(error_message, file=sys.stderr)
+    sys.exit(1)
 
 # Verifica se la directory del repository esiste
 if not os.path.isdir(REPO_ROOT_DIR):
@@ -395,7 +403,7 @@ def create_and_save_graph(data_input, page_main_title, year, output_html_path, i
             addlabels(ax, x_positions, values_for_plotting, bar_width)
 
             ax.set_xlabel('Giorno del mese', fontsize=18, fontweight='bold', color='blue')
-            ax.set_ylabel('Litri (L)', fontsize=18, fontweight='bold', color='blue')
+            ax.set_ylabel('Centimetri (cm)', fontsize=18, fontweight='bold', color='blue')
             
             # Titolo del singolo grafico
             graph_specific_title = f"{page_main_title} (Client: {client_id})" if is_main_index_page else page_main_title
