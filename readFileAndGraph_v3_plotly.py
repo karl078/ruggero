@@ -285,7 +285,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
             fig = px.bar(df_client, 
                          x='Giorno', 
                          y='Altezza acqua (cm)', 
-                         title=f'Livello acqua Acqua - {graph_specific_title}',
+                         title=f'Livello acqua - {graph_specific_title}',
                          text='Altezza acqua (cm)') # Mostra valori sulle barre
             
             fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
@@ -315,7 +315,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
 
     # Costruzione HTML finale
     html_content = f"<html><head><meta charset=\"utf-8\" /><title>Grafico Livello acqua {page_main_title}</title></head>\n"
-    html_content += f"<body><h1>Grafico Livello acqua Acqua - {page_main_title}</h1>\n"
+    html_content += f"<body><h1>Grafico Livello acqua - {page_main_title}</h1>\n"
     html_content += html_body_content
 
     # Aggiungi link ad altri grafici e archivi
