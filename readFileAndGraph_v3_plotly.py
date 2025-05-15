@@ -255,7 +255,7 @@ def git_push(files_to_add):
         logger.exception(f'Errore durante il push del codice su GitHub Pages:')
 
 # --- Funzione di creazione grafico con Plotly ---
-def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_path, is_main_index_page=False, is_archive_file=False):
+def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, output_html_path, is_main_index_page=False, is_archive_file=False):
     html_body_content = ""
     plotly_js_included = False # Per includere Plotly.js solo una volta per pagina
 
@@ -275,9 +275,18 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
                 continue
             
             num_clients_with_data += 1
+            
+            # Ottieni il numero di giorni nel mese
+            num_days_in_month = calendar.monthrange(year, month_num)[1]
+            all_days_in_month = list(range(1, num_days_in_month + 1))
+            
+            # Crea un dizionario Giorno -> Valore solo per i giorni con dati
+            client_data_dict = dict(zip(client_specific_data["days"], client_specific_data["values"]))
+            
+            # Crea la lista di valori per tutti i giorni del mese (None per i giorni senza dati)
             df_client = pd.DataFrame({
-                'Giorno': client_specific_data["days"],
-                'Altezza acqua (cm)': client_specific_data["values"]
+                'Giorno': all_days_in_month,
+                'Altezza acqua (cm)': [client_data_dict.get(day, None) for day in all_days_in_month]
             })
 
             graph_specific_title = f"{page_main_title} (Client: {client_id})" if is_main_index_page else page_main_title
@@ -291,7 +300,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, output_html_
             fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
             fig.update_layout(
                 yaxis_range=[0, 400],
-                xaxis_title='Giorno del mese',
+                xaxis_title=f'Giorno del mese ({mese(month_num)} {year})', # Titolo asse X più descrittivo
                 yaxis_title='Altezza acqua (cm)', # Etichetta asse Y
                 bargap=0.2 # Spazio tra le barre di giorni diversi
             )
@@ -390,6 +399,7 @@ def process_archived_logs_plotly():
                         data_for_graph,
                         archive_page_title,
                         log_year,
+                        log_month, # Passa il numero del mese
                         archive_html_filepath,
                         is_main_index_page=False,
                         is_archive_file=True
@@ -417,6 +427,7 @@ if __name__ == "__main__":
         current_month_data_all_clients,
         f"{current_month_name} {current_year_num}",
         current_year_num,
+        current_month_num, # Passa il numero del mese corrente
         HTML_OUTPUT_PATH,
         is_main_index_page=True,
         is_archive_file=False
