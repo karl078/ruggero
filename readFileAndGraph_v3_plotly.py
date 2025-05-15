@@ -445,7 +445,7 @@ if __name__ == "__main__":
         existing_generated_files = [f for f in generated_html_files_for_git if os.path.exists(f)]
         if existing_generated_files:
             logger.info(f"Tentativo di push per i seguenti file Plotly: {existing_generated_files}")
-            # git_push(existing_generated_files) # Commentato per test
+            git_push(existing_generated_files) # Commentato per test
         else:
             logger.info("Nessun file HTML Plotly (corrente o archiviato) è stato effettivamente generato o trovato, push saltato.")
     else:
