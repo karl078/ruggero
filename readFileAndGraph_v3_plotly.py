@@ -20,62 +20,75 @@ import sys
 # Ottiene il percorso assoluto della directory in cui si trova lo script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# !!! CONFIGURAZIONE UTENTE RICHIESTA !!!
-REPO_ROOT_DIR_WINDOWS = r"C:\Users\Carlo\Documents\DEV\Rpi\Server raccolta dati misurazione acqua\ruggero" # <--- MODIFICA QUESTO PERCORSO PER WINDOWS
-REPO_ROOT_DIR_RASPBERRY = "/home/rpi/python-scripts/acquaServer/ruggero" # <--- MODIFICA QUESTO PERCORSO PER RASPBERRY PI
+# --- Caricamento Configurazione ---
+CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, 'config.ini')
+config = configparser.ConfigParser()
 
-if sys.platform.startswith('win'):
-    REPO_ROOT_DIR = REPO_ROOT_DIR_WINDOWS
-    print(f"Rilevato ambiente Windows. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
-elif sys.platform.startswith('linux'):
-    REPO_ROOT_DIR = REPO_ROOT_DIR_RASPBERRY
-    print(f"Rilevato ambiente Linux/Raspberry Pi. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
-else:
-    error_message = f"ERRORE CRITICO: Sistema operativo non supportato: {sys.platform}"
-    print(error_message, file=sys.stderr)
+if not os.path.exists(CONFIG_FILE_PATH):
+    print(f"ERRORE CRITICO: File di configurazione '{CONFIG_FILE_PATH}' non trovato.")
     sys.exit(1)
 
-if not os.path.isdir(REPO_ROOT_DIR):
-    error_message = (
-        f"ERRORE CRITICO: La directory del repository 'REPO_ROOT_DIR' non esiste o non è una directory.\n"
-        f"Percorso configurato: '{REPO_ROOT_DIR}'\n"
-        f"Verifica la configurazione di REPO_ROOT_DIR in {os.path.basename(__file__)} e assicurati che la cartella esista."
-    )
-    print(error_message, file=sys.stderr)
+try:
+    config.read(CONFIG_FILE_PATH)
+
+    # Percorsi Repository
+    repo_root_dir_windows_conf = config.get('Paths', 'repo_root_dir_windows', fallback=None)
+    repo_root_dir_raspberry_conf = config.get('Paths', 'repo_root_dir_raspberry', fallback=None)
+
+    if sys.platform.startswith('win'):
+        REPO_ROOT_DIR = repo_root_dir_windows_conf
+        if not REPO_ROOT_DIR:
+            raise ValueError("Chiave 'repo_root_dir_windows' non trovata o vuota in config.ini")
+        print(f"Rilevato ambiente Windows. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
+    elif sys.platform.startswith('linux'):
+        REPO_ROOT_DIR = repo_root_dir_raspberry_conf
+        if not REPO_ROOT_DIR:
+            raise ValueError("Chiave 'repo_root_dir_raspberry' non trovata o vuota in config.ini")
+        print(f"Rilevato ambiente Linux/Raspberry Pi. REPO_ROOT_DIR impostato a: {REPO_ROOT_DIR}")
+    else:
+        error_message = f"ERRORE CRITICO: Sistema operativo non supportato: {sys.platform}"
+        print(error_message, file=sys.stderr)
+        sys.exit(1)
+
+    if not os.path.isdir(REPO_ROOT_DIR):
+        raise ValueError(f"La directory del repository '{REPO_ROOT_DIR}' specificata in config.ini non esiste o non è una directory.")
+
+    # Percorsi Log e Client Map
+    log_dir_name_conf = config.get('Paths', 'log_directory_name', fallback='logs')
+    client_map_filename_conf = config.get('Paths', 'client_map_filename', fallback='client_map.ini')
+
+    PARENT_OF_SCRIPT_DIR = os.path.dirname(SCRIPT_DIR) # Directory che contiene la cartella dello script
+
+    LOG_DIRECTORY_PRIMARY = os.path.join(PARENT_OF_SCRIPT_DIR, log_dir_name_conf)
+    LOG_DIRECTORY_FALLBACK = os.path.join(SCRIPT_DIR, log_dir_name_conf)
+    if os.path.isdir(LOG_DIRECTORY_PRIMARY):
+        LOG_DIRECTORY = LOG_DIRECTORY_PRIMARY
+    else:
+        LOG_DIRECTORY = LOG_DIRECTORY_FALLBACK
+        print(f"INFO: Percorso primario dei log non trovato ({LOG_DIRECTORY_PRIMARY}). Uso fallback: {LOG_DIRECTORY}")
+
+    CLIENT_MAP_INI_FILE_PRIMARY = os.path.join(PARENT_OF_SCRIPT_DIR, client_map_filename_conf)
+    CLIENT_MAP_INI_FILE_FALLBACK = os.path.join(SCRIPT_DIR, client_map_filename_conf)
+    if os.path.exists(CLIENT_MAP_INI_FILE_PRIMARY):
+        CLIENT_MAP_INI_FILE = CLIENT_MAP_INI_FILE_PRIMARY
+    else:
+        CLIENT_MAP_INI_FILE = CLIENT_MAP_INI_FILE_FALLBACK
+        print(f"INFO: File client_map.ini primario non trovato ({CLIENT_MAP_INI_FILE_PRIMARY}). Uso fallback: {CLIENT_MAP_INI_FILE}")
+
+    # Percorsi Git e Output HTML
+    git_repo_subdir_conf = config.get('Git', 'git_repo_subdir', fallback='.git')
+    html_output_filename_conf = config.get('Output', 'html_output_filename', fallback='index.html')
+
+    PATH_OF_GIT_REPO = os.path.join(REPO_ROOT_DIR, git_repo_subdir_conf)
+    HTML_OUTPUT_PATH = os.path.join(REPO_ROOT_DIR, html_output_filename_conf)
+
+    MEASUREMENT_LOG_FILE_PATH = os.path.join(LOG_DIRECTORY, 'measurements.log')
+    SCRIPT_EVENT_LOG_FILE = os.path.join(LOG_DIRECTORY, f'graph_generator_events_plotly.log')
+
+except (configparser.Error, ValueError) as e:
+    print(f"ERRORE CRITICO durante la lettura del file di configurazione '{CONFIG_FILE_PATH}': {e}")
     sys.exit(1)
 
-PATH_OF_GIT_REPO = os.path.join(REPO_ROOT_DIR, '.git')
-HTML_OUTPUT_PATH = os.path.join(REPO_ROOT_DIR, "index.html")
-
-# Gestione percorsi LOG_DIRECTORY e CLIENT_MAP_INI_FILE
-# Assumiamo che lo script sia in .../ruggero/
-# e i log/client_map.ini siano in .../Server raccolta dati misurazione acqua/ (paralleli a ruggero)
-# o in .../ruggero/ (se il fallback viene attivato)
-
-PARENT_OF_SCRIPT_DIR = os.path.dirname(SCRIPT_DIR)
-
-LOG_DIRECTORY_PRIMARY = os.path.join(PARENT_OF_SCRIPT_DIR, 'logs')
-LOG_DIRECTORY_FALLBACK = os.path.join(SCRIPT_DIR, 'logs')
-
-if os.path.isdir(LOG_DIRECTORY_PRIMARY):
-    LOG_DIRECTORY = LOG_DIRECTORY_PRIMARY
-else:
-    LOG_DIRECTORY = LOG_DIRECTORY_FALLBACK
-    print(f"INFO: Percorso primario dei log non trovato ({LOG_DIRECTORY_PRIMARY}). Uso fallback: {LOG_DIRECTORY}")
-
-
-CLIENT_MAP_INI_FILE_PRIMARY = os.path.join(PARENT_OF_SCRIPT_DIR, 'client_map.ini')
-CLIENT_MAP_INI_FILE_FALLBACK = os.path.join(SCRIPT_DIR, 'client_map.ini')
-
-if os.path.exists(CLIENT_MAP_INI_FILE_PRIMARY):
-    CLIENT_MAP_INI_FILE = CLIENT_MAP_INI_FILE_PRIMARY
-else:
-    CLIENT_MAP_INI_FILE = CLIENT_MAP_INI_FILE_FALLBACK
-    print(f"INFO: File client_map.ini primario non trovato ({CLIENT_MAP_INI_FILE_PRIMARY}). Uso fallback: {CLIENT_MAP_INI_FILE}")
-
-
-MEASUREMENT_LOG_FILE_PATH = os.path.join(LOG_DIRECTORY, 'measurements.log')
-SCRIPT_EVENT_LOG_FILE = os.path.join(LOG_DIRECTORY, 'graph_generator_events_plotly.log') # Nome log specifico
 
 logger = logging.getLogger(__name__)
 script_event_file_handler = None
