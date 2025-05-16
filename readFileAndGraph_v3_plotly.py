@@ -17,7 +17,7 @@ import os
 import threading
 import sys
 
-# Ottiene il percorso assoluto della directory in cui si trova lo script
+# Ottiene il percorso assoluto della directory in cui si trova lo script!
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Caricamento Configurazione ---
