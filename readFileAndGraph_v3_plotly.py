@@ -344,38 +344,71 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
     html_content += html_body_content
 
     # Aggiungi link ad altri grafici e archivi
-    html_content += "<h2>Altri Grafici e Archivi</h2><ul>\n"
-    other_linkable_files = []
+    html_content += "\n<h2>Altri Grafici e Archivi</h2>\n"
+    
+    # Colleziona tutti i file HTML nel repository, escludendo quello corrente
+    all_other_html_files_in_repo = []
     if os.path.exists(REPO_ROOT_DIR):
-        all_repo_html_files = sorted(
+        all_other_html_files_in_repo = sorted(
             [f for f in os.listdir(REPO_ROOT_DIR) if f.endswith(".html") and os.path.join(REPO_ROOT_DIR, f) != output_html_path],
             reverse=True
         )
-        if is_main_index_page:
-            other_linkable_files = [f for f in all_repo_html_files if f.startswith("grafico_") and not f == os.path.basename(HTML_OUTPUT_PATH)]
-        else:
-            other_linkable_files = all_repo_html_files
-            if os.path.exists(HTML_OUTPUT_PATH) and os.path.basename(HTML_OUTPUT_PATH) not in other_linkable_files and HTML_OUTPUT_PATH != output_html_path :
-                other_linkable_files.insert(0, os.path.basename(HTML_OUTPUT_PATH))
 
-    if not other_linkable_files:
-         html_content += "<li>Nessun altro grafico o archivio disponibile.</li>"
+    # Struttura per raggruppare i link degli archivi: {anno: [info_link, ...]}
+    archived_links_by_year = {}
+    link_to_index_page_info = None # Per le pagine di archivio che linkano a index.html
 
-    for i, other_file_name in enumerate(other_linkable_files):
-        if i < 24:
-             link_display_name = other_file_name.replace(".html", "").replace("grafico_", "").replace("_", " ")
-             if other_file_name == "index.html":
-                 link_display_name = "Grafici Mese Corrente (index.html)"
-             else:
-                match_link = re.match(r"grafico_(\d{4}-\d{2})_(.+)", other_file_name.replace(".html",""))
-                if match_link:
-                    period, client_part = match_link.groups()
-                    link_display_name = f"{period} (Client: {client_part})"
-             html_content += f'<li><a href="{other_file_name}">{link_display_name}</a></li>'
-        else:
-            if i == 24: html_content += "<li>... (altri grafici disponibili nella cartella del repository)</li>"
-            break
-    html_content += "</ul>\n"
+    # Processa tutti gli altri file HTML trovati
+    for file_name in all_other_html_files_in_repo:
+        if file_name == os.path.basename(HTML_OUTPUT_PATH) and HTML_OUTPUT_PATH != output_html_path : # Se è index.html e non siamo su index.html
+            # Determina il mese/anno corrente per il display name di index.html
+            # Se stiamo generando un archivio, month_num e year sono del periodo dell'archivio.
+            # Per il link a index.html, vogliamo il mese/anno corrente effettivo.
+            now_dt_for_index_link = datetime.datetime.now()
+            link_to_index_page_info = {
+                "filename": file_name,
+                "display_name": f"Grafici Mese Corrente ({mese(now_dt_for_index_link.month)} {now_dt_for_index_link.year})"
+            }
+        elif file_name.startswith("grafico_"): # Se è un file di archivio
+            match_archive = re.match(r"grafico_(\d{4})-(\d{2})_(.+)\.html", file_name)
+            if match_archive:
+                year_str, month_str, client_part = match_archive.groups()
+                year_val = int(year_str)
+                month_val = int(month_str)
+                display_name = f"{mese(month_val)} {year_str} (Client: {client_part.replace('_', ' ')})"
+                
+                if year_val not in archived_links_by_year:
+                    archived_links_by_year[year_val] = []
+                archived_links_by_year[year_val].append({
+                    "filename": file_name,
+                    "display_name": display_name,
+                    "month": month_val,
+                    "client": client_part
+                })
+
+    # Genera l'HTML per i link
+    links_html_generated = False
+    if link_to_index_page_info: # Questo sarà vero solo per le pagine di archivio
+        html_content += f"<ul><li><a href=\"{link_to_index_page_info['filename']}\">{link_to_index_page_info['display_name']}</a></li></ul>\n"
+        links_html_generated = True
+    
+    if archived_links_by_year:
+        # Ordina gli anni degli archivi in modo decrescente
+        sorted_archive_years = sorted(archived_links_by_year.keys(), reverse=True)
+        for archive_year_val in sorted_archive_years:
+            html_content += f"<h3>Archivi Anno {archive_year_val}</h3>\n<ul>\n"
+            # Ordina i link per mese (decrescente) e poi per nome client (crescente)
+            links_in_year = sorted(archived_links_by_year[archive_year_val], key=lambda x: (x.get("month", 0), x.get("client", "")), reverse=False)
+            links_in_year.sort(key=lambda x: x.get("month",0), reverse=True) # Ordinamento primario per mese decrescente
+            
+            for link_info in links_in_year:
+                html_content += f"    <li><a href=\"{link_info['filename']}\">{link_info['display_name']}</a></li>\n"
+            html_content += "</ul>\n"
+        links_html_generated = True
+
+    if not links_html_generated:
+        html_content += "<ul><li>Nessun altro grafico o archivio disponibile.</li></ul>\n"
+            
     html_content += f"<p><em>Ultimo aggiornamento: {datetime.datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</em></p>\n"
     html_content += "</body></html>\n"
 
