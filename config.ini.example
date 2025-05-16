@@ -1,0 +1,23 @@
+[Paths]
+# Percorsi assoluti alla directory radice del repository 'ruggero'
+repo_root_dir_windows = C:\Users\Pippo\Documents\
+repo_root_dir_raspberry = /home/rpi/ruggero
+
+# Nome della directory dei log.
+# Lo script cercherà questa directory prima in un percorso parallelo a 'ruggero',
+# poi come sottodirectory di 'ruggero'.
+log_directory_name = logs
+
+# Nome del file di mappatura dei client.
+# Lo script cercherà questo file prima in un percorso parallelo a 'ruggero',
+# poi come sottodirectory di 'ruggero'.
+client_map_filename = client_map.ini
+
+[Git]
+# Nome della sottodirectory che contiene il repository .git (solitamente .git)
+# Lasciare vuoto se .git è direttamente in REPO_ROOT_DIR
+git_repo_subdir = .git
+
+[Output]
+# Nome del file HTML principale per il mese corrente
+html_output_filename = index.html
