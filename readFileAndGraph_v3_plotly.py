@@ -323,7 +323,10 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
              html_body_content = f"<p>Nessun dato graficabile disponibile per i client nel periodo {page_main_title}.</p>"
 
     # Costruzione HTML finale
-    html_content = f"<html><head><meta charset=\"utf-8\" /><title>Grafico Livello acqua {page_main_title}</title></head>\n"
+    html_content = f"<html><head>\n"
+    html_content += f"    <meta charset=\"utf-8\" />\n"
+    html_content += f"    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n" # <-- VIEWPORT META TAG AGGIUNTO
+    html_content += f"    <title>Grafico Livello acqua {page_main_title}</title>\n</head>\n"
     html_content += f"<body><h1>Grafico Livello acqua - {page_main_title}</h1>\n"
     html_content += html_body_content
 
