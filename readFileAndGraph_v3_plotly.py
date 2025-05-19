@@ -310,6 +310,19 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                          title=f'Livello acqua - {graph_specific_title}',
                          text='Altezza acqua (cm)') # Mostra valori sulle barre
             
+            # Imposta l'asse X come categorico prima di definire il range specifico
+            fig.update_xaxes(type='category')
+
+            # Calcola l'intervallo per l'asse X per mostrare gli ultimi 10 giorni
+            # L'asse X è categorico, quindi usiamo le etichette dei giorni (come stringhe) per il range.
+            categories_for_x_axis = [str(d) for d in all_days_in_month] # Giorni del mese come stringhe
+            initial_xaxis_range = None
+            if len(categories_for_x_axis) > 0:
+                if len(categories_for_x_axis) > 10:
+                    initial_xaxis_range = [categories_for_x_axis[-10], categories_for_x_axis[-1]]
+                else:
+                    initial_xaxis_range = [categories_for_x_axis[0], categories_for_x_axis[-1]]
+
             fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
             fig.update_layout(
                 yaxis_range=[0, 400],
@@ -317,10 +330,9 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                 yaxis_title='Altezza acqua (cm)', # Etichetta asse Y
                 bargap=0.2 # Spazio tra le barre di giorni diversi
             )
-            # Assicura che i giorni siano trattati come categorie per evitare interpolazioni
-            fig.update_xaxes(type='category')
+            if initial_xaxis_range: # Applica il range solo se calcolato
+                fig.update_layout(xaxis_range=initial_xaxis_range)
 
-            # Converti figura in HTML. Includi Plotly.js solo per il primo grafico della pagina.
             include_js = 'cdn' if not plotly_js_included else False
             html_fig_for_client = pio.to_html(fig, full_html=False, include_plotlyjs=include_js)
             if include_js == 'cdn':
