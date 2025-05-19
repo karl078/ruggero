@@ -378,10 +378,10 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
             # Per il link a index.html, vogliamo il mese/anno corrente effettivo.
             now_dt_for_index_link = datetime.datetime.now()
             link_to_index_page_info = {
-                "filename": file_name,
+                "filename": os.path.basename(HTML_OUTPUT_PATH), # Assicura che sia sempre il nome base di index.html
                 "display_name": f"Grafici Mese Corrente ({mese(now_dt_for_index_link.month)} {now_dt_for_index_link.year})"
             }
-        elif file_name.startswith("grafico_"): # Se è un file di archivio
+        elif file_name.startswith("grafico_archivio_") or file_name.startswith("grafico_"): # Riconosce entrambi i formati
             match_archive = re.match(r"grafico_(\d{4})-(\d{2})_(.+)\.html", file_name)
             if match_archive:
                 year_str, month_str, client_part = match_archive.groups()
@@ -397,6 +397,20 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                     "month": month_val,
                     "client": client_part
                 })
+            else: # Prova a matchare il nuovo formato aggregato per mese
+                match_archive_monthly = re.match(r"grafico_archivio_(\d{4}-\d{2})\.html", file_name)
+                if match_archive_monthly:
+                    year_str, month_str = match_archive_monthly.groups()
+                    year_val = int(year_str)
+                    month_val = int(month_str)
+                    display_name = f"Archivio {mese(month_val)} {year_str}"
+                    if year_val not in archived_links_by_year:
+                        archived_links_by_year[year_val] = []
+                    archived_links_by_year[year_val].append({
+                        "filename": file_name,
+                        "display_name": display_name,
+                        "month": month_val
+                    })
 
     # Genera l'HTML per i link
     links_html_generated = False
@@ -410,7 +424,10 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
         for archive_year_val in sorted_archive_years:
             html_content += f"<h3>Archivi Anno {archive_year_val}</h3>\n<ul>\n"
             # Ordina i link per mese (decrescente) e poi per nome client (crescente)
-            links_in_year = sorted(archived_links_by_year[archive_year_val], key=lambda x: (x.get("month", 0), x.get("client", "")), reverse=False)
+            # Se 'client' non esiste (nuovo formato), usa una stringa vuota per l'ordinamento
+            links_in_year = sorted(
+                archived_links_by_year[archive_year_val], 
+                key=lambda x: (x.get("month", 0), x.get("client", "") if x.get("client") else ""), reverse=False)
             links_in_year.sort(key=lambda x: x.get("month",0), reverse=True) # Ordinamento primario per mese decrescente
             
             for link_info in links_in_year:
@@ -447,25 +464,24 @@ def process_archived_logs_plotly():
             logger.info(f"Processando dati archiviati per {mese_str_archivio} {log_year} da {log_path}")
             archived_month_data_all_clients = read_and_parse_log_file(log_path, log_month, log_year)
             if archived_month_data_all_clients:
-                for client_id, client_specific_data in archived_month_data_all_clients.items():
-                    if not client_specific_data.get("days"):
-                        logger.info(f"Nessun giorno con dati per il client '{client_id}' nell'archivio {log_file_name}.")
-                        continue
-                    data_for_graph = {client_id: client_specific_data}
-                    safe_client_id = re.sub(r'[^\w\-\.]', '_', client_id)
-                    archive_html_filename = f"grafico_{log_year}-{log_month:02d}_{safe_client_id}.html"
-                    archive_html_filepath = os.path.join(REPO_ROOT_DIR, archive_html_filename)
-                    archive_page_title = f"{mese_str_archivio} {log_year} (Client: {client_id})"
-                    create_and_save_graph_plotly(
-                        data_for_graph,
-                        archive_page_title,
-                        log_year,
-                        log_month, # Passa il numero del mese
-                        archive_html_filepath,
-                        is_main_index_page=False,
-                        is_archive_file=True
-                    )
+                # Genera un unico file HTML per questo mese archiviato, contenente i grafici di tutti i client
+                archive_html_filename = f"grafico_archivio_{log_year:04d}-{log_month:02d}.html"
+                archive_html_filepath = os.path.join(REPO_ROOT_DIR, archive_html_filename)
+                archive_page_main_title = f"{mese_str_archivio} {log_year}" # Titolo principale per la pagina del mese
+                
+                logger.info(f"Generazione file archivio aggregato: {archive_html_filepath}")
+                create_and_save_graph_plotly(
+                    archived_month_data_all_clients, # Passa i dati di tutti i client per questo mese
+                    archive_page_main_title,
+                    log_year,
+                    log_month, 
+                    archive_html_filepath,
+                    is_main_index_page=False, # Non è la pagina index.html principale
+                    is_archive_file=True      # È un file di archivio
+                )
+                if os.path.exists(archive_html_filepath):
                     archived_files_generated.append(archive_html_filepath)
+
             else:
                 logger.info(f"Nessun dato da processare per l'archivio {log_file_name}.")
     return archived_files_generated
