@@ -398,7 +398,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                     "client": client_part
                 })
             else: # Prova a matchare il nuovo formato aggregato per mese
-                match_archive_monthly = re.match(r"grafico_archivio_(\d{4}-\d{2})\.html", file_name)
+                match_archive_monthly = re.match(r"grafico_archivio_(\d{4})-(\d{2})\.html", file_name)
                 if match_archive_monthly:
                     year_str, month_str = match_archive_monthly.groups()
                     year_val = int(year_str)
