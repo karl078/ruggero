@@ -408,13 +408,18 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
     link_to_index_page_info = None # Per le pagine di archivio che linkano a index.html
     for file_item in all_other_html_files_in_repo: # file_item è un dizionario {"full_path": ..., "relative_path": ...}
         # Controlla se il file corrente è la pagina principale (index.html) e non stiamo generando la pagina principale stessa
-        if file_item["full_path"] == HTML_OUTPUT_PATH and HTML_OUTPUT_PATH != output_html_path :
+        if file_item["full_path"] == HTML_OUTPUT_PATH and output_html_path != HTML_OUTPUT_PATH : # Siamo su una pagina di archivio, linkiamo a index.html
             # Determina il mese/anno corrente per il display name di index.html
             # Se stiamo generando un archivio, month_num e year sono del periodo dell'archivio.
             # Per il link a index.html, vogliamo il mese/anno corrente effettivo.
             now_dt_for_index_link = datetime.datetime.now()
+            
+            # Calcola il percorso relativo da output_html_path (che è nell'archivio) a HTML_OUTPUT_PATH (che è nella root)
+            # Esempio: se output_html_path è 'archivio/grafico.html' e HTML_OUTPUT_PATH è 'index.html',
+            # il percorso relativo sarà '../index.html'
+            relative_link_to_index = os.path.relpath(HTML_OUTPUT_PATH, os.path.dirname(output_html_path))
             link_to_index_page_info = {
-                "filename": file_item["relative_path"], # Usa il percorso relativo per il link href
+                "filename": relative_link_to_index, # Usa il percorso relativo calcolato
                 "display_name": f"Grafici Mese Corrente ({mese(now_dt_for_index_link.month)} {now_dt_for_index_link.year})",
             }
         elif file_item["relative_path"].startswith(os.path.basename(ARCHIVE_DIR_PATH) + os.sep + "grafico_"): # Se è un file di archivio nella sottocartella
@@ -496,8 +501,8 @@ def process_archived_logs_plotly():
                         continue
                     data_for_graph = {client_id: client_specific_data}
                     safe_client_id = re.sub(r'[^\w\-\.]', '_', client_id)
-                    archive_html_filename = f"grafico_{log_year}-{log_month:02d}_{safe_client_id}.html" # Nome file senza percorso
-                    archive_html_filepath = os.path.join(REPO_ROOT_DIR, archive_html_filename)
+                    archive_html_filename = f"grafico_{log_year}-{log_month:02d}_{safe_client_id}.html"
+                    archive_html_filepath = os.path.join(ARCHIVE_DIR_PATH, archive_html_filename) # Salva nella sottocartella archivio
                     archive_page_title = f"{mese_str_archivio} {log_year} (Client: {client_id})"
                     create_and_save_graph_plotly(
                         data_for_graph,
