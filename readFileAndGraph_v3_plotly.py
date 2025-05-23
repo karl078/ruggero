@@ -78,6 +78,7 @@ try:
     # Percorsi Git e Output HTML
     git_repo_subdir_conf = config.get('Git', 'git_repo_subdir', fallback='.git')
     html_output_filename_conf = config.get('Output', 'html_output_filename', fallback='index.html')
+    archive_subdir_name_conf = config.get('Output', 'archive_subdir_name', fallback='archivio')
 
     PATH_OF_GIT_REPO = os.path.join(REPO_ROOT_DIR, git_repo_subdir_conf)
     HTML_OUTPUT_PATH = os.path.join(REPO_ROOT_DIR, html_output_filename_conf)
@@ -85,6 +86,7 @@ try:
     MEASUREMENT_LOG_FILE_PATH = os.path.join(LOG_DIRECTORY, 'measurements.log')
     SCRIPT_EVENT_LOG_FILE = os.path.join(LOG_DIRECTORY, f'graph_generator_events_plotly.log')
 
+    ARCHIVE_DIR_PATH = os.path.join(REPO_ROOT_DIR, archive_subdir_name_conf)
 except (configparser.Error, ValueError) as e:
     print(f"ERRORE CRITICO durante la lettura del file di configurazione '{CONFIG_FILE_PATH}': {e}")
     sys.exit(1)
@@ -328,9 +330,23 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                     first_day_in_range = last_10_data_points['Giorno'].min()
                     last_day_in_range = last_10_data_points['Giorno'].max()
 
-                    # L'asse X è categorico, quindi usiamo le etichette dei giorni (come stringhe) per il range.
-                    initial_xaxis_range = [str(first_day_in_range), str(last_day_in_range)]
-                    logger.info(f"Impostato range asse X per '{client_id}' su {initial_xaxis_range} (ultimi {len(last_10_data_points)} dati).")
+                    # Per un migliore controllo dello zoom su asse categorico, usiamo gli indici delle categorie.
+                    # Le categorie sull'asse saranno stringhe dei giorni del mese.
+                    # 'all_days_in_month' contiene i giorni numerici (es. 1, 2, ..., 31)
+                    categories_on_axis_str = [str(d) for d in all_days_in_month] # Lista di tutti i giorni del mese come stringhe
+
+                    first_day_str_for_index = str(first_day_in_range)
+                    last_day_str_for_index = str(last_day_in_range)
+                    try:
+                        start_index = categories_on_axis_str.index(first_day_str_for_index)
+                        end_index = categories_on_axis_str.index(last_day_str_for_index)
+                        # Applica un padding (-0.5 e +0.5) agli indici per assicurare che le barre estreme siano completamente visibili
+                        initial_xaxis_range = [start_index - 0.5, end_index + 0.5]
+                        logger.info(f"Impostato range asse X per '{client_id}' su indici [{initial_xaxis_range[0]:.1f}, {initial_xaxis_range[1]:.1f}] (corrispondenti ai giorni '{first_day_in_range}' - '{last_day_in_range}').")
+                    except ValueError:
+                        # Questo non dovrebbe accadere se first/last_day_in_range provengono da all_days_in_month
+                        logger.warning(f"Uno dei giorni '{first_day_in_range}' o '{last_day_in_range}' non trovato in categories_on_axis_str per '{client_id}'. Fallback a range stringhe: [{first_day_str_for_index}, {last_day_str_for_index}]")
+                        initial_xaxis_range = [first_day_str_for_index, last_day_str_for_index] # Fallback al metodo precedente
                 else:
                     logger.info(f"Nessun dato disponibile per il client '{client_id}' per impostare un range iniziale sull'asse X.")
 
@@ -370,19 +386,26 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
     # Aggiungi link ad altri grafici e archivi
     html_content += "\n<h2>Altri Grafici e Archivi</h2>\n"
     
-    # Colleziona tutti i file HTML nel repository, escludendo quello corrente
+    # Colleziona tutti i file HTML nel repository (root e archivio), escludendo quello corrente
     all_other_html_files_in_repo = []
+    
+    # Cerca nella directory root del repository
     if os.path.exists(REPO_ROOT_DIR):
-        all_other_html_files_in_repo = sorted(
-            [f for f in os.listdir(REPO_ROOT_DIR) if f.endswith(".html") and os.path.join(REPO_ROOT_DIR, f) != output_html_path],
-            reverse=True
-        )
+        for f in os.listdir(REPO_ROOT_DIR):
+            full_path = os.path.join(REPO_ROOT_DIR, f)
+            if f.endswith(".html") and full_path != output_html_path and full_path != ARCHIVE_DIR_PATH: # Escludi la cartella archivio stessa
+                 all_other_html_files_in_repo.append({"full_path": full_path, "relative_path": f})
+
+    # Cerca nella sottodirectory di archivio
+    if os.path.exists(ARCHIVE_DIR_PATH):
+        for f in os.listdir(ARCHIVE_DIR_PATH):
+            full_path = os.path.join(ARCHIVE_DIR_PATH, f)
+            if f.endswith(".html") and full_path != output_html_path:
+                 all_other_html_files_in_repo.append({"full_path": full_path, "relative_path": os.path.join(os.path.basename(ARCHIVE_DIR_PATH), f)})
 
     # Struttura per raggruppare i link degli archivi: {anno: [info_link, ...]}
     archived_links_by_year = {}
     link_to_index_page_info = None # Per le pagine di archivio che linkano a index.html
-
-    # Processa tutti gli altri file HTML trovati
     for file_name in all_other_html_files_in_repo:
         if file_name == os.path.basename(HTML_OUTPUT_PATH) and HTML_OUTPUT_PATH != output_html_path : # Se è index.html e non siamo su index.html
             # Determina il mese/anno corrente per il display name di index.html
@@ -391,10 +414,10 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
             now_dt_for_index_link = datetime.datetime.now()
             link_to_index_page_info = {
                 "filename": file_name,
-                "display_name": f"Grafici Mese Corrente ({mese(now_dt_for_index_link.month)} {now_dt_for_index_link.year})"
+                "display_name": f"Grafici Mese Corrente ({mese(now_dt_for_index_link.month)} {now_dt_for_index_link.year})",
             }
-        elif file_name.startswith("grafico_"): # Se è un file di archivio
-            match_archive = re.match(r"grafico_(\d{4})-(\d{2})_(.+)\.html", file_name)
+        elif file_name_info["relative_path"].startswith(os.path.basename(ARCHIVE_DIR_PATH) + os.sep + "grafico_"): # Se è un file di archivio nella sottocartella
+            match_archive = re.match(r"grafico_(\d{4})-(\d{2})_(.+)\.html", os.path.basename(file_name_info["relative_path"]))
             if match_archive:
                 year_str, month_str, client_part = match_archive.groups()
                 year_val = int(year_str)
@@ -404,7 +427,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                 if year_val not in archived_links_by_year:
                     archived_links_by_year[year_val] = []
                 archived_links_by_year[year_val].append({
-                    "filename": file_name,
+                    "filename": file_name_info["relative_path"],
                     "display_name": display_name,
                     "month": month_val,
                     "client": client_part
@@ -412,7 +435,7 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
 
     # Genera l'HTML per i link
     links_html_generated = False
-    if link_to_index_page_info: # Questo sarà vero solo per le pagine di archivio
+    if link_to_index_page_info and output_html_path != HTML_OUTPUT_PATH: # Questo sarà vero solo per le pagine di archivio
         html_content += f"<ul><li><a href=\"{link_to_index_page_info['filename']}\">{link_to_index_page_info['display_name']}</a></li></ul>\n"
         links_html_generated = True
     
@@ -449,6 +472,13 @@ def process_archived_logs_plotly():
         logger.error(f"La directory dei log '{LOG_DIRECTORY}' non esiste. Impossibile processare gli archivi.")
         return archived_files_generated
         
+    # Assicura che la directory di archivio esista
+    if not os.path.exists(ARCHIVE_DIR_PATH):
+        try:
+            os.makedirs(ARCHIVE_DIR_PATH)
+            logger.info(f"Directory di archivio creata: {ARCHIVE_DIR_PATH}")
+        except OSError as e:
+            logger.error(f"Impossibile creare la directory di archivio {ARCHIVE_DIR_PATH}: {e}. L'archiviazione fallirà.")
     log_files = [f for f in os.listdir(LOG_DIRECTORY) if f.startswith("measurements.log.")]
     for log_file_name in log_files:
         match = re.match(r"measurements\.log\.(\d{4})-(\d{2})", log_file_name)
@@ -465,7 +495,7 @@ def process_archived_logs_plotly():
                         continue
                     data_for_graph = {client_id: client_specific_data}
                     safe_client_id = re.sub(r'[^\w\-\.]', '_', client_id)
-                    archive_html_filename = f"grafico_{log_year}-{log_month:02d}_{safe_client_id}.html"
+                    archive_html_filename = f"grafico_{log_year}-{log_month:02d}_{safe_client_id}.html" # Nome file senza percorso
                     archive_html_filepath = os.path.join(REPO_ROOT_DIR, archive_html_filename)
                     archive_page_title = f"{mese_str_archivio} {log_year} (Client: {client_id})"
                     create_and_save_graph_plotly(
