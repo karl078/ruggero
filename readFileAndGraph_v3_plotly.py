@@ -530,8 +530,17 @@ if __name__ == "__main__":
     client_name_map = load_client_name_map(CLIENT_MAP_INI_FILE)
     logger.info(f"Lettura dati per il mese corrente: {current_month_name} {current_year_num} da {MEASUREMENT_LOG_FILE_PATH}")
     current_month_data_all_clients = read_and_parse_log_file(MEASUREMENT_LOG_FILE_PATH, current_month_num, current_year_num)
+
+    generated_html_files_for_git = []
+
+    # 1. Processa e genera prima i file HTML di archivio
+    logger.info("Inizio processamento log archiviati con Plotly...")
+    archived_htmls = process_archived_logs_plotly()
+    generated_html_files_for_git.extend(archived_htmls)
+    logger.info(f"File HTML Plotly archiviati generati: {archived_htmls}")
     
-    logger.info(f"Generazione di {HTML_OUTPUT_PATH} per il mese corrente con Plotly: {current_month_name} {current_year_num}")
+    # 2. Ora genera il file index.html principale, che potrà linkare agli archivi appena creati
+    logger.info(f"Generazione di {HTML_OUTPUT_PATH} (index) per il mese corrente con Plotly: {current_month_name} {current_year_num}")
     create_and_save_graph_plotly(
         current_month_data_all_clients,
         f"{current_month_name} {current_year_num}",
@@ -541,15 +550,11 @@ if __name__ == "__main__":
         is_main_index_page=True,
         is_archive_file=False
     )
-    generated_html_files_for_git = []
+    # Aggiungi index.html alla lista dei file da committare
     if os.path.exists(HTML_OUTPUT_PATH):
         generated_html_files_for_git.append(HTML_OUTPUT_PATH)
             
-    logger.info("Inizio processamento log archiviati con Plotly...")
-    archived_htmls = process_archived_logs_plotly()
-    generated_html_files_for_git.extend(archived_htmls)
-    logger.info(f"File HTML Plotly archiviati generati: {archived_htmls}")
-
+    # 3. Esegui il push di tutti i file generati (archivi e index.html)
     if generated_html_files_for_git:
         existing_generated_files = [f for f in generated_html_files_for_git if os.path.exists(f)]
         if existing_generated_files:
