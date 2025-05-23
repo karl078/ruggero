@@ -406,28 +406,29 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
     # Struttura per raggruppare i link degli archivi: {anno: [info_link, ...]}
     archived_links_by_year = {}
     link_to_index_page_info = None # Per le pagine di archivio che linkano a index.html
-    for file_name in all_other_html_files_in_repo:
-        if file_name == os.path.basename(HTML_OUTPUT_PATH) and HTML_OUTPUT_PATH != output_html_path : # Se è index.html e non siamo su index.html
+    for file_item in all_other_html_files_in_repo: # file_item è un dizionario {"full_path": ..., "relative_path": ...}
+        # Controlla se il file corrente è la pagina principale (index.html) e non stiamo generando la pagina principale stessa
+        if file_item["full_path"] == HTML_OUTPUT_PATH and HTML_OUTPUT_PATH != output_html_path :
             # Determina il mese/anno corrente per il display name di index.html
             # Se stiamo generando un archivio, month_num e year sono del periodo dell'archivio.
             # Per il link a index.html, vogliamo il mese/anno corrente effettivo.
             now_dt_for_index_link = datetime.datetime.now()
             link_to_index_page_info = {
-                "filename": file_name,
+                "filename": file_item["relative_path"], # Usa il percorso relativo per il link href
                 "display_name": f"Grafici Mese Corrente ({mese(now_dt_for_index_link.month)} {now_dt_for_index_link.year})",
             }
-        elif file_name_info["relative_path"].startswith(os.path.basename(ARCHIVE_DIR_PATH) + os.sep + "grafico_"): # Se è un file di archivio nella sottocartella
-            match_archive = re.match(r"grafico_(\d{4})-(\d{2})_(.+)\.html", os.path.basename(file_name_info["relative_path"]))
+        elif file_item["relative_path"].startswith(os.path.basename(ARCHIVE_DIR_PATH) + os.sep + "grafico_"): # Se è un file di archivio nella sottocartella
+            match_archive = re.match(r"grafico_(\d{4})-(\d{2})_(.+)\.html", os.path.basename(file_item["relative_path"]))
             if match_archive:
                 year_str, month_str, client_part = match_archive.groups()
                 year_val = int(year_str)
                 month_val = int(month_str)
                 display_name = f"{mese(month_val)} {year_str} (Client: {client_part.replace('_', ' ')})"
-                
+
                 if year_val not in archived_links_by_year:
                     archived_links_by_year[year_val] = []
                 archived_links_by_year[year_val].append({
-                    "filename": file_name_info["relative_path"],
+                    "filename": file_item["relative_path"], # Usa il percorso relativo per il link href
                     "display_name": display_name,
                     "month": month_val,
                     "client": client_part
