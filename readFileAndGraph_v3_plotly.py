@@ -313,15 +313,27 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
             # Imposta l'asse X come categorico prima di definire il range specifico
             fig.update_xaxes(type='category')
 
-            # Calcola l'intervallo per l'asse X per mostrare gli ultimi 10 giorni
-            # L'asse X è categorico, quindi usiamo le etichette dei giorni (come stringhe) per il range.
-            categories_for_x_axis = [str(d) for d in all_days_in_month] # Giorni del mese come stringhe
             initial_xaxis_range = None
-            if len(categories_for_x_axis) > 0:
-                if len(categories_for_x_axis) > 10:
-                    initial_xaxis_range = [categories_for_x_axis[-10], categories_for_x_axis[-1]]
+
+            # Calcola l'intervallo per l'asse X basato sugli ultimi 10 *dati* solo per la pagina principale
+            if is_main_index_page:
+                # Filtra il DataFrame per includere solo i giorni con dati
+                df_with_data = df_client.dropna(subset=['Altezza acqua (cm)'])
+
+                if not df_with_data.empty:
+                    # Prendi gli ultimi 10 giorni *con dati*
+                    last_10_data_points = df_with_data.tail(10)
+
+                    # Ottieni il primo e l'ultimo giorno da questo subset
+                    first_day_in_range = last_10_data_points['Giorno'].min()
+                    last_day_in_range = last_10_data_points['Giorno'].max()
+
+                    # L'asse X è categorico, quindi usiamo le etichette dei giorni (come stringhe) per il range.
+                    initial_xaxis_range = [str(first_day_in_range), str(last_day_in_range)]
+                    logger.info(f"Impostato range asse X per '{client_id}' su {initial_xaxis_range} (ultimi {len(last_10_data_points)} dati).")
                 else:
-                    initial_xaxis_range = [categories_for_x_axis[0], categories_for_x_axis[-1]]
+                    logger.info(f"Nessun dato disponibile per il client '{client_id}' per impostare un range iniziale sull'asse X.")
+
 
             fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
             fig.update_layout(
