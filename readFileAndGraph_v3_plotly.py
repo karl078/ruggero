@@ -433,8 +433,8 @@ def create_and_save_graph_plotly(data_input, page_main_title, year, month_num, o
                 if year_val not in archived_links_by_year:
                     archived_links_by_year[year_val] = []
                 archived_links_by_year[year_val].append({
-                    "filename": file_item["relative_path"], # Usa il percorso relativo per il link href
-                    "display_name": display_name,
+                    # Calcola il percorso relativo corretto dall'HTML corrente al file di archivio di destinazione
+                    "filename": os.path.relpath(file_item["full_path"], os.path.dirname(output_html_path)),                    "display_name": display_name,
                     "month": month_val,
                     "client": client_part
                 })
